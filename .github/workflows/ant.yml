@@ -68,8 +68,8 @@ jobs:
       - name: Apply patches
         run: ./gradlew applyPatches --stacktrace --no-daemon
 
-      - name: Build mojmap bundler jar
-        run: ./gradlew createMojmapBundlerJar --stacktrace --no-daemon
+      - name: Build mojmap paperclip jar
+        run: ./gradlew createMojmapPaperclipJar --stacktrace --no-daemon
 
       - name: Upload paperweight logs on failure
         if: failure()
@@ -84,6 +84,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: paper-26.1-${{ github.run_number }}
-          path: paper-server/build/libs/*.jar
+          path: paper-server/build/libs/paper-paperclip-*-mojmap.jar
           if-no-files-found: error
           retention-days: 14
