@@ -1,0 +1,75 @@
+name: Build Paper 26.1
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag, or commit SHA to build
+        required: false
+        default: dev/26.1
+        type: string
+  push:
+    branches:
+      - dev/26.1
+  pull_request:
+    branches:
+      - dev/26.1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-paper-26-1-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source (manual)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Checkout source
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '25'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Validate 26.1 source
+        run: |
+          VERSION="$(grep '^version=' gradle.properties | cut -d'=' -f2)"
+          MC_VERSION="$(grep '^mcVersion=' gradle.properties | cut -d'=' -f2)"
+          echo "Detected version=${VERSION}, mcVersion=${MC_VERSION}"
+          if [[ "${MC_VERSION}" != "26.1" ]]; then
+            echo "::error::This workflow is for 26.1 only, but current mcVersion is ${MC_VERSION}."
+            exit 1
+          fi
+
+      - name: Apply patches
+        run: ./gradlew applyPatches --stacktrace --no-daemon
+
+      - name: Build mojmap bundler jar
+        run: ./gradlew createMojmapBundlerJar --stacktrace --no-daemon
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-26.1-${{ github.run_number }}
+          path: paper-server/build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 14
