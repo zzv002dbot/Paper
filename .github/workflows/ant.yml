@@ -22,6 +22,9 @@ concurrency:
   group: build-paper-26-1-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  GRADLE_USER_HOME: ${{ github.workspace }}/.gradle-home
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -45,10 +48,11 @@ jobs:
         with:
           distribution: zulu
           java-version: '25'
-          cache: gradle
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
 
       - name: Validate 26.1 source
         run: |
@@ -65,18 +69,26 @@ jobs:
           git config --global user.email "no-reply@github.com"
           git config --global user.name "GitHub Actions"
 
-      - name: Apply patches
-        run: ./gradlew applyPatches --stacktrace --no-daemon
+      - name: Clean stale paperweight cache
+        run: |
+          rm -rf paper-server/.gradle/caches/paperweight/oldPaper || true
+          rm -rf "${GRADLE_USER_HOME}/caches/paperweight/oldPaper" || true
 
-      - name: Build mojmap paperclip jar
-        run: ./gradlew createMojmapPaperclipJar --stacktrace --no-daemon
+      - name: Apply patches
+        run: ./gradlew :paper-server:applyPatches --stacktrace --no-daemon --console=plain
+
+      - name: Build server and paperclip jar
+        run: ./gradlew :paper-server:build :paper-server:createPaperclipJar --stacktrace --no-daemon --console=plain
 
       - name: Upload paperweight logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: paperweight-logs-${{ github.run_number }}
-          path: paper-server/.gradle/caches/paperweight/**/*.log
+          path: |
+            paper-server/.gradle/caches/paperweight/**/*.log
+            .gradle-home/caches/paperweight/**/*.log
+            paper-server/build/reports/**
           if-no-files-found: warn
           retention-days: 14
 
@@ -84,6 +96,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: paper-26.1-${{ github.run_number }}
-          path: paper-server/build/libs/paper-paperclip-*-mojmap.jar
+          path: |
+            paper-server/build/libs/paper-paperclip-*.jar
+            paper-server/build/libs/paper-*.jar
           if-no-files-found: error
           retention-days: 14
